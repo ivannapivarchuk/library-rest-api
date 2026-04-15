@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from uuid import UUID, uuid4
+from uuid import UUID
 from enum import Enum
 from typing import Optional
 
@@ -8,8 +8,15 @@ class BookStatus(str, Enum):
     BORROWED = "borrowed"
 
 class BookBase(BaseModel):
-    title: str
-    author: str
+    title: str = Field(..., min_length=1, max_length=100)
+    author: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = None
     status: BookStatus = BookStatus.AVAILABLE
-    year: int
+    year: int = Field(..., gt=0, lt=2100)
+
+class BookCreate(BookBase):
+    pass
+
+# Оце той самий клас Book, який шукає помилка:
+class Book(BookBase):
+    id: UUID
