@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import Optional
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.book_model import BookModel
@@ -8,11 +9,22 @@ class BookRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_all(self, limit: int, offset: int, status=None, author=None):
-        # Починаємо будувати запит
-        query = select(BookModel).offset(offset).limit(limit)
+    async def get_all(
+        self, 
+        limit: int, 
+        cursor: Optional[UUID] = None, 
+        status=None, 
+        author=None
+    ):
+        # 1. Починаємо запит і ОБОВ'ЯЗКОВО додаємо сортування.
+        # Курсорна пагінація не працює без чіткого порядку (зазвичай за ID або часом створення).
+        query = select(BookModel).order_by(BookModel.id).limit(limit)
         
-        # Додаємо фільтрацію, якщо вона є
+        # 2. Якщо курсор передано, вибираємо тільки ті записи, де ID > нашого курсора
+        if cursor:
+            query = query.where(BookModel.id > cursor)
+        
+        # 3. Фільтрація залишається як була
         if status:
             query = query.where(BookModel.status == status)
         if author:
@@ -21,6 +33,7 @@ class BookRepository:
         result = await self.session.execute(query)
         return result.scalars().all()
 
+    # Решта методів (get_by_id, create, delete) залишаються БЕЗ змін
     async def get_by_id(self, book_id: UUID):
         query = select(BookModel).where(BookModel.id == book_id)
         result = await self.session.execute(query)

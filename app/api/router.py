@@ -4,23 +4,24 @@ from typing import List, Optional
 from uuid import UUID
 from app.schemas.book import Book, BookCreate, BookStatus
 from app.services.book_service import BookService
-from app.models.database import get_db  # Імпортуємо функцію підключення до БД
+from app.models.database import get_db
 
 router = APIRouter(prefix="/books", tags=["Books"])
 
-# ВИДАЛИЛИ: service = BookService() - тепер ми створюємо його всередині функцій
-
 @router.get("/", response_model=List[Book])
 async def get_all_books(
-    limit: int = Query(10, ge=1, le=100), # Пагінація: скільки взяти
-    offset: int = Query(0, ge=0),         # Пагінація: скільки пропустити
+    limit: int = Query(10, ge=1, le=100),
+    # ЗАМІНИЛИ offset на cursor
+    cursor: Optional[UUID] = Query(None, description="ID останньої отриманої книги для пагінації"),
     status: Optional[BookStatus] = None,
     author: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)    # Отримуємо сесію БД
+    db: AsyncSession = Depends(get_db)
 ):
-    service = BookService(db) # Створюємо сервіс з базою
-    return await service.get_books(limit, offset, status, author)
+    service = BookService(db)
+    # Передаємо cursor замість offset
+    return await service.get_books(limit, cursor, status, author)
 
+# Решта методів (get_book, create_book, delete_book) залишаються без змін
 @router.get("/{book_id}", response_model=Book)
 async def get_book(book_id: UUID, db: AsyncSession = Depends(get_db)):
     service = BookService(db)
