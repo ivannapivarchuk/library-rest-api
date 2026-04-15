@@ -1,37 +1,28 @@
 from uuid import UUID
-from typing import Optional, List
+from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.repository.book_repo import BookRepository
-from app.schemas.book import BookStatus
+from app.schemas.book import BookStatus, BookCreate
 
 class BookService:
-    def __init__(self):
-        self.repository = BookRepository()
+    def __init__(self, db: AsyncSession):
+        # Передаємо db, яку отримали з роутера, прямо в репозиторій
+        self.repository = BookRepository(db)
 
     async def get_books(
         self, 
+        limit: int, 
+        offset: int, 
         status: Optional[BookStatus] = None, 
-        author: Optional[str] = None,
-        sort_by: Optional[str] = None
+        author: Optional[str] = None
     ):
-        books = await self.repository.get_all()
-        
-        # Фільтрація
-        if status:
-            books = [b for b in books if b["status"] == status]
-        if author:
-            books = [b for b in books if author.lower() in b["author"].lower()]
-        
-        # Сортування (title або year)
-        if sort_by in ["title", "year"]:
-            books = sorted(books, key=lambda x: x[sort_by])
-            
-        return books
+        return await self.repository.get_all(limit, offset, status, author)
 
     async def get_book_by_id(self, book_id: UUID):
         return await self.repository.get_by_id(book_id)
 
-    async def create_book(self, book_data):
+    async def create_book(self, book_data: BookCreate):
         return await self.repository.create(book_data)
 
     async def delete_book(self, book_id: UUID):
-        return await self.repository.delete(book_id)
+        await self.repository.delete(book_id)
