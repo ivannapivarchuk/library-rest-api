@@ -1,31 +1,100 @@
-from fastapi import APIRouter, HTTPException, status, Query, Depends
-from typing import List, Optional
+import asyncio
+from flask import request
+from flask_restful import Resource
+from app.repository.book_repo import BookRepository
+from app.models.database import db
+from app.schemas.book import BookCreate
 
-from app.schemas.book import Book, BookCreate, BookStatus
-from app.services.book_service import BookService
-from app.repository.book_repo import BookRepository  # Імпортуємо репозиторій
+# Створюємо репозиторій
+repo = BookRepository(db=db)
 
-router = APIRouter(prefix="/books", tags=["Books"])
+# Допоміжна функція для запуску асинхронного коду в синхронному Flask
+def run_async(coro):
+    return asyncio.run(coro)
 
-# Функція для отримання сервісу (Dependency Injection)
-def get_book_service():
-    repository = BookRepository(db=db)
-    return BookService(repository)
+class BookListResource(Resource):
+    def get(self):
+        """
+        Отримати список усіх книг
+        ---
+        tags:
+          - Books
+        parameters:
+          - name: limit
+            in: query
+            type: integer
+            default: 10
+          - name: offset
+            in: query
+            type: integer
+            default: 0
+          - name: status
+            in: query
+            type: string
+          - name: author
+            in: query
+            type: string
+        responses:
+          200:
+            description: Список книг успішно отримано
+        """
+        limit = request.args.get('limit', 10, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        status = request.args.get('status')
+        author = request.args.get('author')
 
-@router.get("/", response_model=List[Book])
-async def get_all_books(
-    limit: int = Query(10, ge=1, le=100),
-    offset: int = Query(0, ge=0), 
-    status: Optional[BookStatus] = None,
-    author: Optional[str] = None,
-    service: BookService = Depends(get_book_service) # Отримуємо сервіс через Depends
-):
-    # Тепер сервіс уже має в собі репозиторій і готовий до роботи
-    return await service.get_books(limit=limit, offset=offset, status=status, author=author)
+        books = run_async(repo.get_all(limit=limit, offset=offset, status=status, author=author))
+        return books, 200
 
-@router.post("/", response_model=Book, status_code=status.HTTP_201_CREATED)
-async def create_book(
-    book_data: BookCreate,
-    service: BookService = Depends(get_book_service)
-):
-    return await service.create_book(book_data)
+    def post(self):
+        """
+        Створити нову книгу
+        ---
+        tags:
+          - Books
+        parameters:
+          - name: body
+            in: body
+            required: true
+            schema:
+              required:
+                - title
+                - author
+                - year
+              properties:
+                title:
+                  type: string
+                  example: "Кобзар"
+                author:
+                  type: string
+                  example: "Тарас Шевченко"
+                year:
+                  type: integer
+                  example: 1840
+                description:
+                  type: string
+                  example: "Збірка поетичних творів"
+                status:
+                  type: string
+                  default: "available"
+        responses:
+          201:
+            description: Книга успішно створена
+          400:
+            description: Помилка валідації даних
+        """
+        data = request.get_json()
+        if not data:
+            return {"error": "Немає даних у запиті"}, 400
+
+        try:
+            # Валідація через Pydantic схему
+            book_data = BookCreate(**data)
+            new_book = run_async(repo.create(book_data))
+            return new_book, 201
+        except Exception as e:
+            return {"error": str(e)}, 400
+
+def initialize_routes(api):
+    # Реєструємо ресурс. Endpoint допомагає Swagger ідентифікувати шлях
+    api.add_resource(BookListResource, '/api/books', endpoint='books')

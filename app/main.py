@@ -1,14 +1,27 @@
-from fastapi import FastAPI
-from app.api.router import router as book_router
+from flask import Flask
+from flask_restful import Api
+from flasgger import Swagger
+from app.api.router import initialize_routes
 
-# Назва може бути будь-якою, але залиш "Library API"
-app = FastAPI(title="Library API with MongoDB")
+app = Flask(__name__)
+api = Api(app)
 
-# Видаляємо блок startup з engine.begin(), бо в Mongo не треба створювати таблиці!
-# MongoDB створить базу і колекції автоматично при першому записі.
 
-app.include_router(book_router, prefix="/api")
+initialize_routes(api)
 
-@app.get("/")
-def root():
-    return {"message": "Library API is running with MongoDB in Docker!"}
+swagger = Swagger(app, template={
+    "swagger": "2.0",
+    "info": {
+        "title": "Library API (Flask Edition)",
+        "description": "Лабораторна робота №5: Реалізація API на Flask-RESTful + Swagger",
+        "version": "1.0.0"
+    },
+    "basePath": "/",
+})
+
+@app.route('/')
+def index():
+    return {"message": "Flask Library API is running! Go to /apidocs for Swagger"}, 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000, debug=True)

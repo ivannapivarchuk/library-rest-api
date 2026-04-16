@@ -1,9 +1,6 @@
-fastapi
-uvicorn[standard]
-pydantic[email]
+flask
+flask-restful
+flasgger
 motor
-python-multipart
-# Для тестів
-pytest
-pytest-asyncio
-httpx
+pydantic
+python-dotenv
