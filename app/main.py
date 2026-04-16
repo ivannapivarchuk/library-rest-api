@@ -1,17 +1,14 @@
 from fastapi import FastAPI
 from app.api.router import router as book_router
-from app.models.database import engine, Base
 
-app = FastAPI(title="Library API with Postgres")
+# Назва може бути будь-якою, але залиш "Library API"
+app = FastAPI(title="Library API with MongoDB")
 
-# Цей блок створює таблиці в БД (якщо їх ще немає) при запуску
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+# Видаляємо блок startup з engine.begin(), бо в Mongo не треба створювати таблиці!
+# MongoDB створить базу і колекції автоматично при першому записі.
 
-app.include_router(book_router)
+app.include_router(book_router, prefix="/api")
 
 @app.get("/")
 def root():
-    return {"message": "Library API is running in Docker!"}
+    return {"message": "Library API is running with MongoDB in Docker!"}

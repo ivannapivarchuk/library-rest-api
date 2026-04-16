@@ -1,52 +1,29 @@
-from uuid import UUID
-from typing import Optional
-from sqlalchemy import select, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.book_model import BookModel
+from typing import Optional, List
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.schemas.book import BookCreate
 
 class BookRepository:
-    def __init__(self, session: AsyncSession):
-        self.session = session
+    def __init__(self, db: AsyncIOMotorDatabase):
+        self.collection = db.get_collection("books")
 
-    async def get_all(
-        self, 
-        limit: int, 
-        cursor: Optional[UUID] = None, 
-        status=None, 
-        author=None
-    ):
-        # 1. Починаємо запит і ОБОВ'ЯЗКОВО додаємо сортування.
-        # Курсорна пагінація не працює без чіткого порядку (зазвичай за ID або часом створення).
-        query = select(BookModel).order_by(BookModel.id).limit(limit)
-        
-        # 2. Якщо курсор передано, вибираємо тільки ті записи, де ID > нашого курсора
-        if cursor:
-            query = query.where(BookModel.id > cursor)
-        
-        # 3. Фільтрація залишається як була
+    async def get_all(self, limit: int, offset: int, status: Optional[str] = None, author: Optional[str] = None):
+        filters = {}
         if status:
-            query = query.where(BookModel.status == status)
+            filters["status"] = status
         if author:
-            query = query.where(BookModel.author.ilike(f"%{author}%"))
-            
-        result = await self.session.execute(query)
-        return result.scalars().all()
+            filters["author"] = {"$regex": author, "$options": "i"}
 
-    # Решта методів (get_by_id, create, delete) залишаються БЕЗ змін
-    async def get_by_id(self, book_id: UUID):
-        query = select(BookModel).where(BookModel.id == book_id)
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        cursor = self.collection.find(filters).skip(offset).limit(limit)
+        books = await cursor.to_list(length=limit)
+        
+        # Конвертуємо _id з ObjectId в рядок для кожного документа
+        for book in books:
+            book["id"] = str(book.pop("_id"))
+        return books
 
     async def create(self, book_data: BookCreate):
-        new_book = BookModel(**book_data.model_dump())
-        self.session.add(new_book)
-        await self.session.commit()
-        await self.session.refresh(new_book)
-        return new_book
-
-    async def delete(self, book_id: UUID):
-        query = delete(BookModel).where(BookModel.id == book_id)
-        await self.session.execute(query)
-        await self.session.commit()
+        book_dict = book_data.model_dump()
+        result = await self.collection.insert_one(book_dict)
+        # Додаємо id у відповідь, щоб фронтенд знав ID створеної книги
+        book_dict["id"] = str(result.inserted_id)
+        return book_dict

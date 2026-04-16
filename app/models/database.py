@@ -1,16 +1,10 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
 
-# URL для підключення (db — це буде ім'я сервісу в Docker)
-DATABASE_URL = "postgresql+asyncpg://user:password@db:5432/library"
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://mongodb_container:27017.")
+client = AsyncIOMotorClient(MONGO_URL)
+db = client.library_db
 
-engine = create_async_engine(DATABASE_URL, echo=True)
-SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
-
-class Base(DeclarativeBase):
-    pass
-
-# Залежність для отримання сесії БД в ендпоінти
 async def get_db():
-    async with SessionLocal() as session:
-        yield session
+  
+    return db

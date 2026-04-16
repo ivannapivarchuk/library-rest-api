@@ -1,9 +1,9 @@
 fastapi
-uvicorn
-pydantic
-sqlalchemy
-psycopg2-binary
-asyncpg
+uvicorn[standard]
+pydantic[email]
+motor
+python-multipart
+# Для тестів
 pytest
 pytest-asyncio
 httpx
