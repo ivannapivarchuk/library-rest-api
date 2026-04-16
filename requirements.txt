@@ -1,6 +1,8 @@
-flask
-flask-restful
-flasgger
+fastapi
+uvicorn
 motor
 pydantic
-python-dotenv
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart

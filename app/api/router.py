@@ -1,100 +1,39 @@
-import asyncio
-from flask import request
-from flask_restful import Resource
+from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from app.api.auth import oauth2_scheme  
+from app.schemas.book import Book, BookCreate
+from app.services.book_service import BookService
 from app.repository.book_repo import BookRepository
 from app.models.database import db
-from app.schemas.book import BookCreate
 
-# Створюємо репозиторій
-repo = BookRepository(db=db)
+router = APIRouter(prefix="/books", tags=["Books"])
 
-# Допоміжна функція для запуску асинхронного коду в синхронному Flask
-def run_async(coro):
-    return asyncio.run(coro)
+# Залежність для захисту ендпоінтів
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return payload.get("sub")
 
-class BookListResource(Resource):
-    def get(self):
-        """
-        Отримати список усіх книг
-        ---
-        tags:
-          - Books
-        parameters:
-          - name: limit
-            in: query
-            type: integer
-            default: 10
-          - name: offset
-            in: query
-            type: integer
-            default: 0
-          - name: status
-            in: query
-            type: string
-          - name: author
-            in: query
-            type: string
-        responses:
-          200:
-            description: Список книг успішно отримано
-        """
-        limit = request.args.get('limit', 10, type=int)
-        offset = request.args.get('offset', 0, type=int)
-        status = request.args.get('status')
-        author = request.args.get('author')
+def get_book_service():
+    repository = BookRepository(db=db)
+    return BookService(repository)
 
-        books = run_async(repo.get_all(limit=limit, offset=offset, status=status, author=author))
-        return books, 200
+@router.get("/", response_model=List[Book])
+async def get_all_books(
+    current_user: str = Depends(get_current_user), # Захист
+    service: BookService = Depends(get_book_service)
+):
+    return await service.get_books(limit=10, offset=0)
 
-    def post(self):
-        """
-        Створити нову книгу
-        ---
-        tags:
-          - Books
-        parameters:
-          - name: body
-            in: body
-            required: true
-            schema:
-              required:
-                - title
-                - author
-                - year
-              properties:
-                title:
-                  type: string
-                  example: "Кобзар"
-                author:
-                  type: string
-                  example: "Тарас Шевченко"
-                year:
-                  type: integer
-                  example: 1840
-                description:
-                  type: string
-                  example: "Збірка поетичних творів"
-                status:
-                  type: string
-                  default: "available"
-        responses:
-          201:
-            description: Книга успішно створена
-          400:
-            description: Помилка валідації даних
-        """
-        data = request.get_json()
-        if not data:
-            return {"error": "Немає даних у запиті"}, 400
-
-        try:
-            # Валідація через Pydantic схему
-            book_data = BookCreate(**data)
-            new_book = run_async(repo.create(book_data))
-            return new_book, 201
-        except Exception as e:
-            return {"error": str(e)}, 400
-
-def initialize_routes(api):
-    # Реєструємо ресурс. Endpoint допомагає Swagger ідентифікувати шлях
-    api.add_resource(BookListResource, '/api/books', endpoint='books')
+@router.post("/", response_model=Book, status_code=status.HTTP_201_CREATED)
+async def create_book(
+    book_data: BookCreate,
+    current_user: str = Depends(get_current_user), # Захист
+    service: BookService = Depends(get_book_service)
+):
+    return await service.create_book(book_data)

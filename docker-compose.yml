@@ -3,6 +3,9 @@ services:
     build: .
     ports:
       - "8000:8000"
+    tty: true
+    volumes:
+      - .:/app
     environment:
       - MONGO_URL=mongodb://mongodb_container:27017
       - PYTHONUNBUFFERED=1

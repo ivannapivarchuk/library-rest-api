@@ -1,27 +1,28 @@
-from flask import Flask
-from flask_restful import Api
-from flasgger import Swagger
-from app.api.router import initialize_routes
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from app.api.auth import router as auth_router
+from app.models.database import db # Переконайся, що тут ініціалізовано клієнт
+from app.api.router import router as book_router  
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Дії при запуску: можна перевірити конект до бази
+    print("Starting up: Connecting to MongoDB...")
+    yield
+    # Дії при вимкненні: закриття з'єднань
+    print("Shutting down: Closing connections...")
 
-app = Flask(__name__)
-api = Api(app)
+app = FastAPI(
+    title="Library API with Auth",
+    description="API бібліотеки з JWT Auth та Refresh Token flow",
+    version="2.0.0",
+    lifespan=lifespan
+)
 
+app.include_router(auth_router)
 
-initialize_routes(api)
+# Підключаємо роутер книг
+app.include_router(book_router)
 
-swagger = Swagger(app, template={
-    "swagger": "2.0",
-    "info": {
-        "title": "Library API (Flask Edition)",
-        "description": "Лабораторна робота №5: Реалізація API на Flask-RESTful + Swagger",
-        "version": "1.0.0"
-    },
-    "basePath": "/",
-})
-
-@app.route('/')
-def index():
-    return {"message": "Flask Library API is running! Go to /apidocs for Swagger"}, 200
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000, debug=True)
+@app.get("/")
+async def root():
+    return {"message": "Welcome to protected Library API. Go to /docs for Swagger UI"}
